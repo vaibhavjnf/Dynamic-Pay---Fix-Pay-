@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Camera, Upload, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
-import { extractUPIFromImage } from '../../services/geminiService';
-import { AppConfig } from '../../types';
+import { extractMerchantData, MerchantData } from '../../services/geminiService';
+import { AppConfig, CatalogItem } from '../../types';
 
 interface SetupScreenProps {
   onComplete: (config: AppConfig) => void;
@@ -10,6 +10,7 @@ interface SetupScreenProps {
 const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
   const [shopName, setShopName] = useState('');
   const [upiId, setUpiId] = useState('');
+  const [category, setCategory] = useState<string>('other');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
@@ -27,9 +28,11 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
       setLoading(true);
 
       try {
-        const extractedUPI = await extractUPIFromImage(base64);
-        if (extractedUPI) {
-          setUpiId(extractedUPI);
+        const data = await extractMerchantData(base64);
+        if (data) {
+          setUpiId(data.upiId);
+          if (data.shopName) setShopName(data.shopName);
+          if (data.category) setCategory(data.category);
           setStep(2);
         } else {
           setError("Could not find a valid UPI ID. Please try another image or enter manually.");
@@ -43,6 +46,43 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
     reader.readAsDataURL(file);
   };
 
+  const getDefaultsByCategory = (cat: string) => {
+    switch (cat) {
+      case 'tea_shop':
+        return {
+          amounts: [10, 20, 50, 100],
+          catalog: [
+            { id: '1', name: 'Tea', price: 10 },
+            { id: '2', name: 'Coffee', price: 20 },
+            { id: '3', name: 'Samosa', price: 15 }
+          ]
+        };
+      case 'grocery':
+        return {
+          amounts: [50, 100, 200, 500],
+          catalog: [
+             { id: '1', name: 'Milk', price: 30 },
+             { id: '2', name: 'Bread', price: 40 }
+          ]
+        };
+      case 'restaurant':
+        return {
+          amounts: [100, 200, 500, 1000],
+          catalog: []
+        };
+      case 'pharmacy':
+        return {
+          amounts: [50, 100, 200, 500],
+          catalog: []
+        };
+      default:
+        return {
+          amounts: [10, 20, 50, 100],
+          catalog: []
+        };
+    }
+  };
+
   const handleSubmit = () => {
     if (!shopName || !upiId) {
       setError('Please fill all fields');
@@ -54,11 +94,13 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
         return;
     }
 
+    const defaults = getDefaultsByCategory(category);
+
     const config: AppConfig = { 
       shopName, 
       upiId,
-      quickAmounts: [10, 20, 50, 100],
-      catalog: []
+      quickAmounts: defaults.amounts,
+      catalog: defaults.catalog
     };
     localStorage.setItem('fixpay_config', JSON.stringify(config));
     onComplete(config);
@@ -134,7 +176,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
                         <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/90 z-20">
                             <Loader2 className="animate-spin mb-4 text-black" size={48} />
                             <p className="font-black uppercase text-sm animate-pulse text-black">
-                                AI Extracting UPI...
+                                AI Extracting Info...
                             </p>
                         </div>
                     )}
@@ -196,6 +238,26 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
                     placeholder="My Awesome Shop"
                     className="w-full px-4 py-4 border-4 border-black font-bold text-lg focus:outline-none focus:bg-primary/20 placeholder:text-gray-400 text-black bg-white"
                   />
+                </div>
+                
+                 <div>
+                  <label className="block font-black uppercase text-sm mb-2 text-black">
+                    Category (AI Detected)
+                  </label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full px-4 py-4 border-4 border-black font-bold text-lg focus:outline-none focus:bg-primary/20 text-black bg-white appearance-none"
+                  >
+                     <option value="tea_shop">Tea Shop</option>
+                     <option value="grocery">Grocery / Kirana</option>
+                     <option value="restaurant">Restaurant</option>
+                     <option value="pharmacy">Pharmacy</option>
+                     <option value="other">Other</option>
+                  </select>
+                  <p className="text-[10px] font-bold mt-1 text-gray-500 uppercase">
+                    Used to suggest presets & items
+                  </p>
                 </div>
               </div>
             </div>
