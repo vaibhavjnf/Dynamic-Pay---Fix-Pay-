@@ -1,0 +1,8 @@
+{
+  "name": "FixPay",
+  "description": "A Neobrutalist dynamic UPI QR generator for merchants with AI-powered setup.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
